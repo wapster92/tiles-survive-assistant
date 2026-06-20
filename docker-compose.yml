@@ -1,0 +1,25 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      PORT: 3000
+      CORS_ORIGIN: http://localhost:8080
+      SQLITE_DATABASE_PATH: /data/tails-survive.sqlite
+    expose:
+      - "3000"
+    volumes:
+      - sqlite-data:/data
+
+  web:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  sqlite-data:

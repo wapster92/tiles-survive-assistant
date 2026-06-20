@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Превью иконок ресурсов</title>
+    <style>
+      :root {
+        color: #17211b;
+        background: #eef4ed;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 32px;
+      }
+
+      main {
+        width: min(1120px, 100%);
+        margin: 0 auto;
+      }
+
+      h1 {
+        margin: 0 0 24px;
+        font-size: 2rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+      }
+
+      figure {
+        display: grid;
+        grid-template-columns: 52px 1fr;
+        gap: 12px;
+        align-items: center;
+        margin: 0;
+        border: 1px solid #cdd8cf;
+        border-radius: 8px;
+        padding: 12px;
+        background: #ffffff;
+      }
+
+      img {
+        width: 52px;
+        height: 52px;
+      }
+
+      figcaption {
+        overflow-wrap: anywhere;
+        font-size: 0.85rem;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Иконки ресурсов</h1>
+      <div class="grid" id="icons"></div>
+    </main>
+
+    <script>
+      const icons = [
+        'advanced-summon',
+        'alloy-gear',
+        'biogenic-protein',
+        'common-parts',
+        'construction-speedup',
+        'diamonds',
+        'epic-hero-fragment',
+        'food',
+        'fuel',
+        'gear-scraps',
+        'hero-coupon',
+        'hero-skill-guide',
+        'infected',
+        'legendary-hero-fragment',
+        'metal',
+        'precise-blueprints',
+        'raid-infected',
+        'rare-hero-fragment',
+        'reforge-hammer',
+        'reforge-tape',
+        'research-speedup',
+        'scout-infected',
+        'soldiers',
+        'standard-summon',
+        'titan-cell',
+        'titan-experience',
+        'wood'
+      ];
+
+      document.querySelector('#icons').innerHTML = icons
+        .map(
+          (icon) => `
+            <figure>
+              <img src="/icons/resources/${icon}.svg" alt="" />
+              <figcaption>${icon}</figcaption>
+            </figure>
+          `
+        )
+        .join('');
+    </script>
+  </body>
+</html>
