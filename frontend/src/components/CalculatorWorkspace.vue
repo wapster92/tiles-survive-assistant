@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { apiClient } from '../api/client.js';
 
 const props = defineProps({
@@ -20,6 +20,7 @@ const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
 const savedMessage = ref('');
+const workspaceLoaded = ref(false);
 
 const speedups = reactive({
   totalMinutes: 0
@@ -220,11 +221,42 @@ const planInvalid = computed(() => {
   return [...totalsByRule.values()].some((item) => item.plannedAmount > item.amount);
 });
 
-const canSave = computed(
-  () => !allocationInvalid.value && !planInvalid.value && !trainingInvalid.value && !saving.value
+const canPersist = computed(
+  () => !allocationInvalid.value && !planInvalid.value && !trainingInvalid.value
 );
+const calculatorPayload = computed(() => ({
+  items: planItems.value.map((item) => ({
+    ruleKey: item.ruleKey,
+    amount: number(item.amount),
+    plannedAmount: number(item.plannedAmount),
+    universalAmount: number(item.universalAmount),
+    day: number(item.day)
+  })),
+  speedups: normalizedSpeedups(),
+  training: normalizedTrainingPlan()
+}));
+
+let autosaveTimer = null;
+let autosaveSuspended = false;
+const lastSavedSnapshot = ref('');
 
 onMounted(loadWorkspace);
+onBeforeUnmount(() => {
+  clearAutosaveTimer();
+});
+
+watch(
+  calculatorPayload,
+  () => {
+    if (!workspaceLoaded.value || autosaveSuspended) {
+      return;
+    }
+
+    savedMessage.value = '';
+    scheduleAutosave();
+  },
+  { deep: true }
+);
 
 async function loadWorkspace() {
   loading.value = true;
@@ -242,6 +274,8 @@ async function loadWorkspace() {
       .map((item) => ({ ...item, universalAmount: item.universalAmount ?? 0 }));
     speedups.totalMinutes = state.speedups.totalMinutes;
     Object.assign(training, state.trainingPlan);
+    lastSavedSnapshot.value = snapshotCalculator();
+    workspaceLoaded.value = true;
   } catch (requestError) {
     if (requestError.response?.status === 401) {
       emit('logout');
@@ -361,8 +395,38 @@ function remainingForRule(item) {
   return number(item.amount) - plannedForRule(item.ruleKey);
 }
 
+function scheduleAutosave() {
+  clearAutosaveTimer();
+
+  if (!canPersist.value) {
+    return;
+  }
+
+  autosaveTimer = window.setTimeout(saveCalculator, 700);
+}
+
+function clearAutosaveTimer() {
+  if (autosaveTimer) {
+    window.clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+}
+
 async function saveCalculator() {
-  if (!canSave.value) {
+  clearAutosaveTimer();
+
+  if (!canPersist.value) {
+    return;
+  }
+
+  const snapshot = snapshotCalculator();
+
+  if (snapshot === lastSavedSnapshot.value) {
+    return;
+  }
+
+  if (saving.value) {
+    scheduleAutosave();
     return;
   }
 
@@ -371,22 +435,20 @@ async function saveCalculator() {
   savedMessage.value = '';
 
   try {
-    await apiClient.put('/api/me/plan-items', {
-      items: planItems.value.map((item) => ({
-        ruleKey: item.ruleKey,
-        amount: number(item.amount),
-        plannedAmount: number(item.plannedAmount),
-        universalAmount: number(item.universalAmount),
-        day: number(item.day)
-      }))
-    });
-    await apiClient.put('/api/me/speedup-allocation', normalizedSpeedups());
-    await apiClient.put('/api/me/training-plan', normalizedTrainingPlan());
-    savedMessage.value = 'Запасы и план сохранены';
+    const payload = JSON.parse(snapshot);
+    await apiClient.put('/api/me/plan-items', { items: payload.items });
+    await apiClient.put('/api/me/speedup-allocation', payload.speedups);
+    await apiClient.put('/api/me/training-plan', payload.training);
+    lastSavedSnapshot.value = snapshot;
+    savedMessage.value = 'Изменения сохранены';
   } catch (requestError) {
     error.value = requestError.response?.data?.error ?? 'Не удалось сохранить калькулятор.';
   } finally {
     saving.value = false;
+
+    if (snapshotCalculator() !== lastSavedSnapshot.value) {
+      scheduleAutosave();
+    }
   }
 }
 
@@ -397,6 +459,7 @@ async function resetCalculator() {
 
   try {
     await apiClient.delete('/api/me/calculator');
+    autosaveSuspended = true;
     planItems.value = [];
     Object.assign(speedups, {
       totalMinutes: 0
@@ -413,9 +476,13 @@ async function resetCalculator() {
       trainingSpeedupMinutes: 0,
       universalTrainingMinutes: 0
     });
+    await nextTick();
+    lastSavedSnapshot.value = snapshotCalculator();
     savedMessage.value = 'Калькулятор сброшен';
   } catch {
     error.value = 'Не удалось сбросить данные.';
+  } finally {
+    autosaveSuspended = false;
   }
 }
 
@@ -476,6 +543,10 @@ function number(value) {
 
 function formatPoints(value) {
   return number(value).toLocaleString('ru-RU');
+}
+
+function snapshotCalculator() {
+  return JSON.stringify(calculatorPayload.value);
 }
 </script>
 
@@ -794,18 +865,8 @@ function formatPoints(value) {
 
         <p v-if="planInvalid" class="form-error">Планируемая трата не может превышать запас.</p>
         <p v-if="error" class="form-error">{{ error }}</p>
+        <p v-if="saving" class="save-message">Сохраняю изменения...</p>
         <p v-if="savedMessage" class="save-message">{{ savedMessage }}</p>
-
-        <UButton
-          block
-          icon="i-lucide-save"
-          :disabled="!canSave"
-          :loading="saving"
-          size="xl"
-          @click="saveCalculator"
-        >
-          Сохранить и рассчитать
-        </UButton>
       </aside>
     </main>
   </div>
