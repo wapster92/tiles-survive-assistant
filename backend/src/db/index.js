@@ -74,6 +74,7 @@ export function initializeDatabase() {
       amount REAL NOT NULL,
       planned_amount REAL NOT NULL,
       universal_amount REAL NOT NULL DEFAULT 0,
+      resource_costs TEXT NOT NULL DEFAULT '[]',
       day INTEGER NOT NULL,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (user_id, rule_key, day),
@@ -93,6 +94,7 @@ export function initializeDatabase() {
       batch_minutes INTEGER NOT NULL,
       training_speedup_minutes INTEGER NOT NULL,
       universal_training_minutes INTEGER NOT NULL DEFAULT 0,
+      resource_costs TEXT NOT NULL DEFAULT '[]',
       updated_at TEXT NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -103,6 +105,7 @@ export function initializeDatabase() {
   ensureUserProfileColumns();
   ensurePlanItemsSupportMultipleDays();
   ensureUniversalAllocationColumns();
+  ensureResourceCostColumns();
   removeLegacyGrowthColumns();
   sqlite.exec('DROP TABLE IF EXISTS user_speedup_allocations');
   ensureTrainingPlanMetadataColumns();
@@ -246,6 +249,7 @@ export function replaceUserPlanItems(userId, items) {
           amount: item.amount,
           plannedAmount: item.plannedAmount,
           universalAmount: item.universalAmount,
+          resourceCosts: item.resourceCosts,
           day: item.day,
           updatedAt
         })
@@ -270,6 +274,7 @@ export function getUserTrainingPlan(userId) {
       batchMinutes: 0,
       trainingSpeedupMinutes: 0,
       universalTrainingMinutes: 0,
+      resourceCosts: [],
       updatedAt: null
     }
   );
@@ -414,6 +419,7 @@ function ensurePlanItemsSupportMultipleDays() {
         amount REAL NOT NULL,
         planned_amount REAL NOT NULL,
         universal_amount REAL NOT NULL DEFAULT 0,
+        resource_costs TEXT NOT NULL DEFAULT '[]',
         day INTEGER NOT NULL,
         updated_at TEXT NOT NULL,
         PRIMARY KEY (user_id, rule_key, day),
@@ -421,9 +427,9 @@ function ensurePlanItemsSupportMultipleDays() {
         FOREIGN KEY (rule_key) REFERENCES event_rules(key)
       );
       INSERT INTO user_plan_items (
-        user_id, rule_key, amount, planned_amount, universal_amount, day, updated_at
+        user_id, rule_key, amount, planned_amount, universal_amount, resource_costs, day, updated_at
       )
-      SELECT user_id, rule_key, amount, planned_amount, 0, day, updated_at
+      SELECT user_id, rule_key, amount, planned_amount, 0, '[]', day, updated_at
       FROM user_plan_items_legacy;
       DROP TABLE user_plan_items_legacy;
       COMMIT;
@@ -448,6 +454,19 @@ function ensureUniversalAllocationColumns() {
 
   if (!trainingColumns.has('universal_training_minutes')) {
     sqlite.exec('ALTER TABLE user_training_plans ADD COLUMN universal_training_minutes INTEGER NOT NULL DEFAULT 0');
+  }
+}
+
+function ensureResourceCostColumns() {
+  const planColumns = new Set(sqlite.prepare('PRAGMA table_info(user_plan_items)').all().map((column) => column.name));
+  const trainingColumns = new Set(sqlite.prepare('PRAGMA table_info(user_training_plans)').all().map((column) => column.name));
+
+  if (!planColumns.has('resource_costs')) {
+    sqlite.exec("ALTER TABLE user_plan_items ADD COLUMN resource_costs TEXT NOT NULL DEFAULT '[]'");
+  }
+
+  if (!trainingColumns.has('resource_costs')) {
+    sqlite.exec("ALTER TABLE user_training_plans ADD COLUMN resource_costs TEXT NOT NULL DEFAULT '[]'");
   }
 }
 

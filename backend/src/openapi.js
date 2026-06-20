@@ -451,12 +451,17 @@ export const openApiDocument = {
       },
       PlanItemInput: {
         type: 'object',
-        required: ['ruleKey', 'amount', 'plannedAmount', 'universalAmount', 'day'],
+        required: ['ruleKey', 'amount', 'plannedAmount', 'universalAmount', 'resourceCosts', 'day'],
         properties: {
           ruleKey: { type: 'string', example: 'bolt-tier-2-use' },
           amount: { type: 'number', minimum: 0, description: 'Общий запас для всех строк с этим ruleKey', example: 100 },
           plannedAmount: { type: 'number', minimum: 0, description: 'Трата в выбранный день; сумма по ruleKey не превышает amount', example: 50 },
           universalAmount: { type: 'number', minimum: 0, description: 'Универсальные минуты для исследования или строительства в этот день', example: 30 },
+          resourceCosts: {
+            type: 'array',
+            description: 'Опциональный расход игровых ресурсов. Используется только для строительства и исследований; уголь актуален только для исследований.',
+            items: { $ref: '#/components/schemas/ResourceCost' }
+          },
           day: { type: 'integer', minimum: 1, maximum: 7, example: 1 }
         }
       },
@@ -503,7 +508,8 @@ export const openApiDocument = {
           'batchHours',
           'batchMinutes',
           'trainingSpeedupMinutes',
-          'universalTrainingMinutes'
+          'universalTrainingMinutes',
+          'resourceCosts'
         ],
         properties: {
           enabled: { type: 'boolean', example: true },
@@ -515,7 +521,24 @@ export const openApiDocument = {
           batchHours: { type: 'integer', minimum: 0, example: 12 },
           batchMinutes: { type: 'integer', minimum: 0, maximum: 59, example: 30 },
           trainingSpeedupMinutes: { type: 'integer', minimum: 0, example: 500 },
-          universalTrainingMinutes: { type: 'integer', minimum: 0, example: 250 }
+          universalTrainingMinutes: { type: 'integer', minimum: 0, example: 250 },
+          resourceCosts: {
+            type: 'array',
+            description: 'Расход игровых ресурсов на одного солдата. Уголь не используется.',
+            items: { $ref: '#/components/schemas/ResourceCost' }
+          }
+        }
+      },
+      ResourceCost: {
+        type: 'object',
+        required: ['resourceKey', 'amount'],
+        properties: {
+          resourceKey: {
+            type: 'string',
+            enum: ['wood', 'food', 'metal', 'fuel', 'coal'],
+            example: 'food'
+          },
+          amount: { type: 'number', minimum: 0, example: 1200 }
         }
       },
       TrainingPlan: {

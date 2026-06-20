@@ -15,7 +15,6 @@ const elements = ref([]);
 const rules = ref([]);
 const planItems = ref([]);
 const selectedRuleKey = ref('');
-const ruleSearch = ref('');
 const loading = ref(true);
 const saving = ref(false);
 const error = ref('');
@@ -36,10 +35,23 @@ const training = reactive({
   batchHours: 0,
   batchMinutes: 0,
   trainingSpeedupMinutes: 0,
-  universalTrainingMinutes: 0
+  universalTrainingMinutes: 0,
+  resourceCosts: []
 });
 
 const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const gameResources = [
+  { key: 'wood', label: 'Древесина' },
+  { key: 'food', label: 'Еда' },
+  { key: 'metal', label: 'Металл' },
+  { key: 'fuel', label: 'Топливо' },
+  { key: 'coal', label: 'Уголь' }
+];
+const standardGameResources = gameResources.filter((resource) => resource.key !== 'coal');
+const plainNumberInput = {
+  decrement: false,
+  increment: false
+};
 
 const elementsByKey = computed(() => new Map(elements.value.map((element) => [element.key, element])));
 const rulesByKey = computed(() => new Map(rules.value.map((rule) => [rule.key, rule])));
@@ -55,9 +67,26 @@ const selectedDaysByRule = computed(() => {
   return result;
 });
 
-const groupedRules = computed(() => {
-  const query = ruleSearch.value.trim().toLocaleLowerCase('ru');
-  const groups = new Map();
+const rulePickerItems = computed(() => {
+  const items = [];
+
+  if (!training.enabled) {
+    items.push(
+      {
+        type: 'label',
+        label: 'Войска'
+      },
+      {
+        key: '__training__',
+        label: 'Обучение солдат',
+        description: 'Войска · расчёт по казарме',
+        category: 'Войска',
+        icon: 'i-lucide-users'
+      }
+    );
+  }
+
+  const rulesByCategory = new Map();
 
   for (const rule of rules.value.filter((item) => item.calculatorVisible !== false)) {
     if (availableDays(rule).length === 0) {
@@ -65,26 +94,31 @@ const groupedRules = computed(() => {
     }
 
     const element = elementsByKey.value.get(rule.elementKey);
-    const searchable = `${element?.name ?? ''} ${element?.category ?? ''} ${rule.action}`.toLocaleLowerCase('ru');
-
-    if (query && !searchable.includes(query)) {
-      continue;
-    }
-
     const category = element?.category ?? 'Прочее';
-    const group = groups.get(category) ?? [];
-    group.push(rule);
-    groups.set(category, group);
+    const group = rulesByCategory.get(category) ?? [];
+
+    group.push({
+      key: rule.key,
+      label: ruleLabel(rule),
+      description: rule.action,
+      category,
+      icon: element?.icon,
+      colorHex: element?.colorHex ?? '#2f6f55'
+    });
+    rulesByCategory.set(category, group);
   }
 
-  return [...groups.entries()].map(([category, groupRules]) => ({ category, rules: groupRules }));
-});
-const trainingOptionVisible = computed(() => {
-  if (training.enabled) {
-    return false;
+  for (const [category, group] of rulesByCategory.entries()) {
+    items.push(
+      {
+        type: 'label',
+        label: category
+      },
+      ...group
+    );
   }
-  const query = ruleSearch.value.trim().toLocaleLowerCase('ru');
-  return !query || 'обучение солдат казарма войска'.includes(query);
+
+  return items;
 });
 const hasPlanEntries = computed(() => planItems.value.length > 0 || training.enabled);
 
@@ -160,6 +194,7 @@ const trainingInvalid = computed(() => {
 
   return (
     integerValues.some((value) => !Number.isInteger(value) || value < 0) ||
+    !resourceCostsValid(training.resourceCosts, resourcesForTarget(training)) ||
     number(training.soldierLevel) < 1 ||
     number(training.soldierLevel) > 10 ||
     number(training.garrisonLimit) < number(training.currentSoldiers) ||
@@ -174,6 +209,35 @@ const liveTotal = computed(() => {
   const resourcePoints = planItems.value.reduce((sum, item) => sum + plannedPoints(item), 0);
   return resourcePoints + trainingPoints.value;
 });
+const resourceCostTotals = computed(() => {
+  const totals = Object.fromEntries(gameResources.map((resource) => [resource.key, 0]));
+
+  for (const item of planItems.value) {
+    if (!supportsResourceCosts(item)) {
+      continue;
+    }
+
+    for (const cost of normalizedResourceCosts(item.resourceCosts, resourcesForItem(item))) {
+      totals[cost.resourceKey] += cost.amount;
+    }
+  }
+
+  if (training.enabled) {
+    for (const cost of normalizedResourceCosts(training.resourceCosts, resourcesForTarget(training))) {
+      totals[cost.resourceKey] += cost.amount * trainingCompletedSoldiers.value;
+    }
+  }
+
+  return totals;
+});
+const visibleResourceCostTotals = computed(() =>
+  gameResources
+    .map((resource) => ({
+      ...resource,
+      amount: resourceCostTotals.value[resource.key] ?? 0
+    }))
+    .filter((resource) => resource.amount > 0)
+);
 
 const totalsByDay = computed(() => {
   const totals = Array.from({ length: 7 }, (_, index) => ({ day: index + 1, points: 0 }));
@@ -206,6 +270,7 @@ const planInvalid = computed(() => {
       number(item.plannedAmount) < 0 ||
       number(item.universalAmount) < 0 ||
       (!supportsUniversalSpeedups(item) && number(item.universalAmount) > 0) ||
+      (supportsResourceCosts(item) && !resourceCostsValid(item.resourceCosts, resourcesForItem(item))) ||
       total.amount !== number(item.amount) ||
       !rule?.days.includes(number(item.day)) ||
       allocations.has(allocationKey)
@@ -230,6 +295,7 @@ const calculatorPayload = computed(() => ({
     amount: number(item.amount),
     plannedAmount: number(item.plannedAmount),
     universalAmount: number(item.universalAmount),
+    resourceCosts: supportsResourceCosts(item) ? normalizedResourceCosts(item.resourceCosts, resourcesForItem(item)) : [],
     day: number(item.day)
   })),
   speedups: normalizedSpeedups(),
@@ -271,9 +337,16 @@ async function loadWorkspace() {
     rules.value = dictionary.rules;
     planItems.value = state.planItems
       .filter((item) => rulesByKey.value.get(item.ruleKey)?.calculatorVisible !== false)
-      .map((item) => ({ ...item, universalAmount: item.universalAmount ?? 0 }));
+      .map((item) => ({
+        ...item,
+        universalAmount: item.universalAmount ?? 0,
+        resourceCosts: supportsResourceCosts(item) ? normalizedResourceCosts(item.resourceCosts, resourcesForItem(item)) : []
+      }));
     speedups.totalMinutes = state.speedups.totalMinutes;
-    Object.assign(training, state.trainingPlan);
+    Object.assign(training, {
+      ...state.trainingPlan,
+      resourceCosts: normalizedResourceCosts(state.trainingPlan?.resourceCosts, resourcesForTarget(training))
+    });
     lastSavedSnapshot.value = snapshotCalculator();
     workspaceLoaded.value = true;
   } catch (requestError) {
@@ -291,7 +364,6 @@ function addSelectedRule() {
   if (selectedRuleKey.value === '__training__') {
     training.enabled = true;
     selectedRuleKey.value = '';
-    ruleSearch.value = '';
     savedMessage.value = '';
     return;
   }
@@ -302,7 +374,17 @@ function addSelectedRule() {
     return;
   }
   selectedRuleKey.value = '';
-  ruleSearch.value = '';
+}
+
+function handleRulePicked(value) {
+  const pickedKey = typeof value === 'string' ? value : value?.key;
+
+  if (!pickedKey) {
+    return;
+  }
+
+  selectedRuleKey.value = pickedKey;
+  addSelectedRule();
 }
 
 function addAnotherDay(ruleKey) {
@@ -323,6 +405,7 @@ function appendRule(rule) {
     amount: existing?.amount ?? 0,
     plannedAmount: 0,
     universalAmount: 0,
+    resourceCosts: [],
     day: days[0]
   });
   savedMessage.value = '';
@@ -337,6 +420,7 @@ function removeItem(target) {
 function removeTrainingPlan() {
   training.enabled = false;
   training.universalTrainingMinutes = 0;
+  training.resourceCosts = [];
   savedMessage.value = '';
 }
 
@@ -382,6 +466,44 @@ function updateSharedField(ruleKey, field, value) {
       item[field] = value;
     }
   }
+  savedMessage.value = '';
+}
+
+function addResourceCostGroup(target) {
+  const resources = resourcesForTarget(target);
+
+  target.resourceCosts = [
+    ...normalizedResourceCosts(target.resourceCosts, resources),
+    ...resources.map((resource) => ({ resourceKey: resource.key, amount: 0 }))
+  ];
+  savedMessage.value = '';
+}
+
+function removeResourceCostGroup(target, groupIndex) {
+  target.resourceCosts = resourceCostGroups(target)
+    .filter((_, rowIndex) => rowIndex !== groupIndex)
+    .flatMap((group) => resourceCostGroupEntries(group, resourcesForTarget(target)));
+  savedMessage.value = '';
+}
+
+function updateResourceCostGroup(target, groupIndex, resourceKey, value) {
+  const groups = resourceCostGroups(target);
+  const resources = resourcesForTarget(target);
+
+  while (groups.length <= groupIndex) {
+    groups.push(emptyResourceCostGroup(resources));
+  }
+
+  groups[groupIndex][resourceKey] = number(value);
+  target.resourceCosts = groups.flatMap((group) => resourceCostGroupEntries(group, resources));
+  savedMessage.value = '';
+}
+
+function updateTrainingResourceCost(resourceKey, value) {
+  const group = trainingResourceCostGroup();
+
+  group[resourceKey] = number(value);
+  training.resourceCosts = resourceCostGroupEntries(group, resourcesForTarget(training));
   savedMessage.value = '';
 }
 
@@ -474,7 +596,8 @@ async function resetCalculator() {
       batchHours: 0,
       batchMinutes: 0,
       trainingSpeedupMinutes: 0,
-      universalTrainingMinutes: 0
+      universalTrainingMinutes: 0,
+      resourceCosts: []
     });
     await nextTick();
     lastSavedSnapshot.value = snapshotCalculator();
@@ -503,7 +626,8 @@ function normalizedTrainingPlan() {
     batchHours: number(training.batchHours),
     batchMinutes: number(training.batchMinutes),
     trainingSpeedupMinutes: number(training.trainingSpeedupMinutes),
-    universalTrainingMinutes: number(training.universalTrainingMinutes)
+    universalTrainingMinutes: number(training.universalTrainingMinutes),
+    resourceCosts: normalizedResourceCosts(training.resourceCosts, resourcesForTarget(training))
   };
 }
 
@@ -530,10 +654,89 @@ function supportsUniversalSpeedups(item) {
   return ['research-speedup-1-minute', 'construction-speedup-1-minute'].includes(item.ruleKey);
 }
 
+function supportsResourceCosts(item) {
+  return ['research-speedup-1-minute', 'construction-speedup-1-minute'].includes(item?.ruleKey);
+}
+
+function resourcesForItem(item) {
+  return item?.ruleKey === 'research-speedup-1-minute' ? gameResources : standardGameResources;
+}
+
+function resourcesForTarget(target) {
+  return target?.ruleKey ? resourcesForItem(target) : standardGameResources;
+}
+
 function universalMinutesForRule(ruleKey) {
   return planItems.value
     .filter((item) => item.ruleKey === ruleKey)
     .reduce((sum, item) => sum + number(item.universalAmount), 0);
+}
+
+function normalizedResourceCosts(value, resources = gameResources) {
+  const allowedKeys = new Set(resources.map((resource) => resource.key));
+
+  return Array.isArray(value)
+    ? value
+        .map((row) => ({
+          resourceKey: String(row?.resourceKey ?? ''),
+          amount: number(row?.amount)
+        }))
+        .filter((row) => allowedKeys.has(row.resourceKey) && row.amount >= 0)
+    : [];
+}
+
+function resourceCostGroups(target) {
+  const resources = resourcesForTarget(target);
+  const costs = normalizedResourceCosts(target.resourceCosts, resources);
+  const groups = [];
+
+  for (let index = 0; index < costs.length; index += resources.length) {
+    const group = emptyResourceCostGroup(resources);
+
+    for (const cost of costs.slice(index, index + resources.length)) {
+      group[cost.resourceKey] = cost.amount;
+    }
+
+    groups.push(group);
+  }
+
+  return groups;
+}
+
+function emptyResourceCostGroup(resources = gameResources) {
+  return Object.fromEntries(resources.map((resource) => [resource.key, 0]));
+}
+
+function resourceCostGroupEntries(group, resources = gameResources) {
+  return resources.map((resource) => ({
+    resourceKey: resource.key,
+    amount: number(group[resource.key])
+  }));
+}
+
+function resourceCostGroupCount(target) {
+  return resourceCostGroups(target).length;
+}
+
+function trainingResourceCostGroup() {
+  return resourceCostGroups(training)[0] ?? emptyResourceCostGroup(resourcesForTarget(training));
+}
+
+function resourceCostsValid(value, resources = gameResources) {
+  if (!Array.isArray(value) || value.length > 100) {
+    return false;
+  }
+
+  const allowedKeys = new Set(resources.map((resource) => resource.key));
+
+  return value.every((row) => {
+    const amount = Number(row?.amount);
+    return (
+      allowedKeys.has(row?.resourceKey) &&
+      Number.isFinite(amount) &&
+      amount >= 0
+    );
+  });
 }
 
 function number(value) {
@@ -584,24 +787,36 @@ function snapshotCalculator() {
         </div>
 
         <section class="resource-picker">
-          <div class="resource-picker__search">
-            <UIcon name="i-lucide-search" />
-            <input v-model="ruleSearch" placeholder="Найти ресурс или действие" type="search" />
-          </div>
-          <select v-model="selectedRuleKey" aria-label="Выберите ресурс">
-            <option value="">Выберите ресурс</option>
-            <optgroup v-if="trainingOptionVisible" label="Войска">
-              <option value="__training__">Обучение солдат · расчёт по казарме</option>
-            </optgroup>
-            <optgroup v-for="group in groupedRules" :key="group.category" :label="group.category">
-              <option v-for="rule in group.rules" :key="rule.key" :value="rule.key">
-                {{ ruleLabel(rule) }}
-              </option>
-            </optgroup>
-          </select>
-          <UButton icon="i-lucide-plus" :disabled="!selectedRuleKey" @click="addSelectedRule">
-            Добавить
-          </UButton>
+          <UInputMenu
+            v-model="selectedRuleKey"
+            class="resource-picker__input"
+            :filter-fields="['label', 'description', 'category']"
+            :items="rulePickerItems"
+            :open-on-click="true"
+            :open-on-focus="true"
+            :reset-search-term-on-select="true"
+            color="neutral"
+            description-key="description"
+            icon="i-lucide-search"
+            label-key="label"
+            placeholder="Найти ресурс или действие"
+            size="xl"
+            trailing-icon="i-lucide-chevron-down"
+            value-key="key"
+            variant="outline"
+            @update:model-value="handleRulePicked"
+          >
+            <template #item-leading="{ item }">
+              <span
+                v-if="item.icon?.startsWith?.('/')"
+                class="resource-picker__option-icon"
+                :style="{ color: item.colorHex }"
+              >
+                <img :src="item.icon" alt="" />
+              </span>
+              <UIcon v-else-if="item.icon" :name="item.icon" />
+            </template>
+          </UInputMenu>
         </section>
 
         <div v-if="hasPlanEntries" class="resource-list">
@@ -632,25 +847,27 @@ function snapshotCalculator() {
             <div :class="['resource-fields', { 'resource-fields--universal': supportsUniversalSpeedups(item) }]">
               <label>
                 <span>Общий запас</span>
-                <UInput
+                <UInputNumber
+                  v-bind="plainNumberInput"
                   :model-value="item.amount"
-                  min="0"
-                  type="number"
+                  :min="0"
+                  :step="1"
                   @update:model-value="updateSharedField(item.ruleKey, 'amount', $event)"
                 />
               </label>
               <label>
                 <span>Потратить</span>
-                <UInput
+                <UInputNumber
+                  v-bind="plainNumberInput"
                   v-model="item.plannedAmount"
                   :max="number(item.plannedAmount) + Math.max(remainingForRule(item), 0)"
-                  min="0"
-                  type="number"
+                  :min="0"
+                  :step="1"
                 />
               </label>
               <label v-if="supportsUniversalSpeedups(item)">
                 <span>Из универсальных ускорений (минуты)</span>
-                <UInput v-model="item.universalAmount" min="0" type="number" />
+                <UInputNumber v-bind="plainNumberInput" v-model="item.universalAmount" :min="0" :step="1" />
               </label>
               <label>
                 <span>День</span>
@@ -688,6 +905,48 @@ function snapshotCalculator() {
                 @click="removeItem(item)"
               />
             </div>
+
+            <details v-if="supportsResourceCosts(item)" class="cost-details">
+              <summary>
+                <span>Расход ресурсов</span>
+                <strong v-if="resourceCostGroupCount(item) > 0">{{ resourceCostGroupCount(item) }} строк</strong>
+              </summary>
+
+              <div class="cost-rows">
+                <div
+                  v-for="(costGroup, costIndex) in resourceCostGroups(item)"
+                  :key="costIndex"
+                  class="cost-row"
+                >
+                  <label v-for="resource in resourcesForItem(item)" :key="resource.key">
+                    <span>{{ resource.label }}</span>
+                    <UInputNumber
+                      v-bind="plainNumberInput"
+                      :model-value="costGroup[resource.key]"
+                      :min="0"
+                      :step="1"
+                      @update:model-value="updateResourceCostGroup(item, costIndex, resource.key, $event)"
+                    />
+                  </label>
+                  <UButton
+                    aria-label="Удалить строку расхода"
+                    class="cost-row__remove"
+                    color="neutral"
+                    icon="i-lucide-x"
+                    size="xs"
+                    variant="ghost"
+                    @click="removeResourceCostGroup(item, costIndex)"
+                  />
+                </div>
+              </div>
+
+              <div class="cost-footer">
+                <UButton color="neutral" icon="i-lucide-plus" size="sm" variant="soft" @click="addResourceCostGroup(item)">
+                  Добавить строку
+                </UButton>
+                <span v-if="item.resourceCosts.length === 0">Можно не заполнять, если расход не нужен.</span>
+              </div>
+            </details>
           </article>
 
           <article v-if="training.enabled" class="training-planner training-planner--plan">
@@ -720,41 +979,41 @@ function snapshotCalculator() {
               </label>
               <label>
                 <span>Сейчас в гарнизоне</span>
-                <UInput v-model="training.currentSoldiers" min="0" step="1" type="number" />
+                <UInputNumber v-bind="plainNumberInput" v-model="training.currentSoldiers" :min="0" :step="1" />
               </label>
               <label>
                 <span>Лимит гарнизона</span>
-                <UInput v-model="training.garrisonLimit" min="0" step="1" type="number" />
+                <UInputNumber v-bind="plainNumberInput" v-model="training.garrisonLimit" :min="0" :step="1" />
               </label>
               <label>
                 <span>Обучить солдат</span>
-                <UInput
+                <UInputNumber
+                  v-bind="plainNumberInput"
                   v-model="training.plannedSoldiers"
                   :max="trainingFreeCapacity"
-                  min="0"
-                  step="1"
-                  type="number"
+                  :min="0"
+                  :step="1"
                 />
               </label>
               <label>
                 <span>Лимит обучения казармы</span>
-                <UInput v-model="training.batchLimit" min="1" step="1" type="number" />
+                <UInputNumber v-bind="plainNumberInput" v-model="training.batchLimit" :min="1" :step="1" />
               </label>
               <label>
                 <span>Часы полной очереди</span>
-                <UInput v-model="training.batchHours" min="0" step="1" type="number" />
+                <UInputNumber v-bind="plainNumberInput" v-model="training.batchHours" :min="0" :step="1" />
               </label>
               <label>
                 <span>Минуты полной очереди</span>
-                <UInput v-model="training.batchMinutes" max="59" min="0" step="1" type="number" />
+                <UInputNumber v-bind="plainNumberInput" v-model="training.batchMinutes" :max="59" :min="0" :step="1" />
               </label>
               <label>
                 <span>Ускорения обучения (минуты)</span>
-                <UInput v-model="training.trainingSpeedupMinutes" min="0" step="1" type="number" />
+                <UInputNumber v-bind="plainNumberInput" v-model="training.trainingSpeedupMinutes" :min="0" :step="1" />
               </label>
               <label>
                 <span>Из универсальных ускорений (минуты)</span>
-                <UInput v-model="training.universalTrainingMinutes" min="0" step="1" type="number" />
+                <UInputNumber v-bind="plainNumberInput" v-model="training.universalTrainingMinutes" :min="0" :step="1" />
               </label>
             </div>
 
@@ -778,6 +1037,31 @@ function snapshotCalculator() {
               <div><span>Гарантированно солдат</span><strong>{{ formatPoints(trainingCompletedSoldiers) }}</strong></div>
               <div><span>Очки в понедельник</span><strong>{{ formatPoints(trainingPoints) }}</strong></div>
             </div>
+
+            <details class="cost-details cost-details--training">
+              <summary>
+                <span>Ресурсы на обучение одного солдата</span>
+              </summary>
+
+              <div class="cost-rows">
+                <div class="cost-row cost-row--fixed">
+                  <label v-for="resource in resourcesForTarget(training)" :key="resource.key">
+                    <span>{{ resource.label }}</span>
+                    <UInputNumber
+                      v-bind="plainNumberInput"
+                      :model-value="trainingResourceCostGroup()[resource.key]"
+                      :min="0"
+                      :step="1"
+                      @update:model-value="updateTrainingResourceCost(resource.key, $event)"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div class="cost-footer">
+                <span>Укажите цену одного солдата по ресурсам, итог посчитается по гарантированному количеству.</span>
+              </div>
+            </details>
 
             <p v-if="trainingInvalid" class="form-error">
               Проверьте вместимость гарнизона, размер и время полной очереди.
@@ -804,7 +1088,7 @@ function snapshotCalculator() {
           <div class="speedup-stock">
             <label>
               <span>Всего ускорений (минуты)</span>
-              <UInput v-model="speedups.totalMinutes" min="0" type="number" />
+              <UInputNumber v-bind="plainNumberInput" v-model="speedups.totalMinutes" :min="0" :step="1" />
             </label>
             <div class="speedup-quick-actions">
               <UButton
@@ -861,6 +1145,14 @@ function snapshotCalculator() {
           <strong>{{ planItems.length + (training.enabled ? 1 : 0) }}</strong>
           <span>Универсальных распределено</span>
           <strong>{{ formatPoints(universalAllocated) }} мин.</strong>
+        </div>
+
+        <div v-if="visibleResourceCostTotals.length > 0" class="summary-resources">
+          <span>Расход ресурсов</span>
+          <div v-for="resource in visibleResourceCostTotals" :key="resource.key">
+            <span>{{ resource.label }}</span>
+            <strong>{{ formatPoints(resource.amount) }}</strong>
+          </div>
         </div>
 
         <p v-if="planInvalid" class="form-error">Планируемая трата не может превышать запас.</p>

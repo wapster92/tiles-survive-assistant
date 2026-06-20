@@ -33,7 +33,7 @@ export const elementSeed = [
   },
   {
     key: 'research-speedup',
-    name: 'Ускоритель исследования',
+    name: 'Ускорение исследования',
     category: 'Исследования',
     unit: '1 минута',
     icon: '/icons/resources/research-speedup.svg',
@@ -372,7 +372,7 @@ export const ruleSeed = [
   rule('alloy-gear-star-rating', 'alloy-gear', 'Используйте 1 ед. снаряжения из сплава для повышения звездного рейтинга', 2200000, [1, 2, 5, 7]),
   rule('reforge-hammer-1', 'reforge-hammer', 'Используйте молот перековки x1', 8000, [1, 2, 5, 7]),
   rule('reforge-tape-1', 'reforge-tape', 'Используйте изоленту для перековки x1', 600000, [1, 2, 5, 7]),
-  rule('research-speedup-1-minute', 'research-speedup', 'Используйте 1 минуту ускорителя исследования', 700, [1, 3, 6, 7]),
+  rule('research-speedup-1-minute', 'research-speedup', 'Используйте 1 минуту ускорения исследования', 700, [1, 3, 6, 7]),
   rule('bolt-tier-1-use', 'bolt-tier-1', 'Используйте болт T1 (голубой) x1', 4000, [1, 2, 5, 7]),
   rule('bolt-tier-2-use', 'bolt-tier-2', 'Используйте болт T2 (фиолетовый) x1', 16000, [1, 2, 5, 7]),
   rule('bolt-tier-3-use', 'bolt-tier-3', 'Используйте болт T3 (оранжевый) x1', 80000, [1, 2, 5, 7]),

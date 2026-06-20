@@ -64,6 +64,9 @@ const eventWindows = [
   { day: 'Воскресенье', time: '16:00-19:00 МСК', activity: 'Снаряжение: обломки', overlaps: ['ТЧ', 'ИК'] }
 ];
 
+const gameResourceKeys = new Set(['wood', 'food', 'metal', 'fuel', 'coal']);
+const standardGameResourceKeys = new Set(['wood', 'food', 'metal', 'fuel']);
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
@@ -340,6 +343,7 @@ function normalizePlanItems(value) {
     const universalAmount = Number(item?.universalAmount ?? 0);
     const day = Number(item?.day);
     const rule = getRuleByKey(ruleKey);
+    const resourceCosts = normalizeResourceCosts(item?.resourceCosts, resourceKeysForRule(ruleKey));
 
     if (
       !rule ||
@@ -352,6 +356,7 @@ function normalizePlanItems(value) {
       plannedAmount > amount ||
       !Number.isFinite(universalAmount) ||
       universalAmount < 0 ||
+      !resourceCosts ||
       (universalAmount > 0 && !['research-speedup-1-minute', 'construction-speedup-1-minute'].includes(ruleKey)) ||
       !Number.isInteger(day) ||
       !rule.days.includes(day)
@@ -370,7 +375,7 @@ function normalizePlanItems(value) {
       amount,
       plannedAmount: (total?.plannedAmount ?? 0) + plannedAmount
     });
-    normalized.push({ ruleKey, amount, plannedAmount, universalAmount, day });
+    normalized.push({ ruleKey, amount, plannedAmount, universalAmount, resourceCosts, day });
   }
 
   if ([...totalsByRule.values()].some((item) => item.plannedAmount > item.amount)) {
@@ -401,16 +406,18 @@ function normalizeTrainingPlan(value) {
     batchHours: Number(value?.batchHours),
     batchMinutes: Number(value?.batchMinutes),
     trainingSpeedupMinutes: Number(value?.trainingSpeedupMinutes),
-    universalTrainingMinutes: Number(value?.universalTrainingMinutes ?? 0)
+    universalTrainingMinutes: Number(value?.universalTrainingMinutes ?? 0),
+    resourceCosts: normalizeResourceCosts(value?.resourceCosts, standardGameResourceKeys)
   };
   const values = Object.entries(plan)
-    .filter(([key]) => key !== 'enabled')
+    .filter(([key]) => !['enabled', 'resourceCosts'].includes(key))
     .map(([, number]) => number);
   const freeCapacity = plan.garrisonLimit - plan.currentSoldiers;
   const batchDuration = plan.batchHours * 60 + plan.batchMinutes;
 
   if (
     typeof plan.enabled !== 'boolean' ||
+    !plan.resourceCosts ||
     !values.every((number) => Number.isInteger(number) && number >= 0) ||
     (plan.enabled &&
       (plan.soldierLevel < 1 ||
@@ -424,6 +431,49 @@ function normalizeTrainingPlan(value) {
   }
 
   return plan;
+}
+
+function normalizeResourceCosts(value, allowedKeys = gameResourceKeys) {
+  if (value == null) {
+    return [];
+  }
+
+  if (allowedKeys.size === 0) {
+    return [];
+  }
+
+  if (!Array.isArray(value) || value.length > 100) {
+    return null;
+  }
+
+  const normalized = [];
+
+  for (const row of value) {
+    const resourceKey = String(row?.resourceKey ?? '').trim();
+    const amount = Number(row?.amount);
+
+    if (!gameResourceKeys.has(resourceKey) || !Number.isFinite(amount) || amount < 0) {
+      return null;
+    }
+
+    if (allowedKeys.has(resourceKey)) {
+      normalized.push({ resourceKey, amount });
+    }
+  }
+
+  return normalized;
+}
+
+function resourceKeysForRule(ruleKey) {
+  if (ruleKey === 'research-speedup-1-minute') {
+    return gameResourceKeys;
+  }
+
+  if (ruleKey === 'construction-speedup-1-minute') {
+    return standardGameResourceKeys;
+  }
+
+  return new Set();
 }
 
 function getCalculatorState(userId) {

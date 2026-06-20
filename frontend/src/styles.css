@@ -179,18 +179,22 @@ select {
 .login-form label,
 .resource-fields label,
 .speedup-stock label,
-.training-fields label {
+.training-fields label,
+.cost-row label {
   display: grid;
+  align-content: end;
   gap: 7px;
 }
 
 .login-form label > span,
 .resource-fields label > span,
 .speedup-stock label > span,
-.training-fields label > span {
+.training-fields label > span,
+.cost-row label > span {
   color: #526158;
   font-size: 0.78rem;
   font-weight: 750;
+  line-height: 1.25;
 }
 
 .app-shell {
@@ -265,30 +269,37 @@ select {
 
 .resource-picker {
   display: grid;
-  grid-template-columns: minmax(180px, 0.7fr) minmax(260px, 1fr) auto;
+  grid-template-columns: 1fr;
   gap: 10px;
   border-block: 1px solid #cad5cd;
   padding: 14px 0;
 }
 
-.resource-picker__search {
-  position: relative;
+.resource-picker__input {
+  width: 100%;
 }
 
-.resource-picker__search svg {
-  position: absolute;
-  top: 50%;
-  left: 12px;
-  width: 17px;
-  height: 17px;
-  color: #6b7970;
-  transform: translateY(-50%);
+.resource-picker__option-icon {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, currentColor 48%, #dfe8e2);
+  border-radius: 6px;
+  background: radial-gradient(circle at 35% 28%, #ffffff, #edf5f0 62%, color-mix(in srgb, currentColor 20%, #eef5f0));
 }
 
-.resource-picker input,
-.resource-picker select,
+.resource-picker__option-icon img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
 .resource-fields select,
-.training-fields select {
+.training-fields select,
+.cost-row select {
   width: 100%;
   min-height: 40px;
   border: 1px solid #bdcbc1;
@@ -299,14 +310,9 @@ select {
   outline: none;
 }
 
-.resource-picker input {
-  padding-left: 38px;
-}
-
-.resource-picker input:focus,
-.resource-picker select:focus,
 .resource-fields select:focus,
-.training-fields select:focus {
+.training-fields select:focus,
+.cost-row select:focus {
   border-color: #12815a;
   box-shadow: 0 0 0 3px rgb(18 129 90 / 12%);
 }
@@ -342,6 +348,7 @@ select {
   place-items: center;
   border: 1px solid currentColor;
   border-radius: 8px;
+  overflow: hidden;
   background: color-mix(in srgb, currentColor 9%, white);
 }
 
@@ -382,12 +389,13 @@ select {
 
 .resource-fields {
   display: grid;
-  grid-template-columns: repeat(3, minmax(80px, 1fr));
+  grid-template-columns: repeat(4, minmax(110px, 1fr));
   gap: 8px;
+  align-items: end;
 }
 
-.resource-fields--universal {
-  grid-template-columns: repeat(4, minmax(80px, 1fr));
+.resource-fields:not(.resource-fields--universal) label:last-child {
+  grid-column: 4;
 }
 
 .resource-result {
@@ -409,6 +417,76 @@ select {
   display: flex;
   gap: 6px;
   justify-content: flex-end;
+}
+
+.cost-details {
+  grid-column: 1 / -1;
+  border-top: 1px solid #d8e0da;
+  padding-top: 10px;
+}
+
+.cost-details--training {
+  margin-top: 14px;
+}
+
+.cost-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #355346;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.cost-details summary::marker {
+  color: #12815a;
+}
+
+.cost-details summary strong {
+  color: #17251d;
+  font-size: 0.88rem;
+}
+
+.cost-rows {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.cost-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(92px, 1fr)) 36px;
+  gap: 8px;
+  align-items: end;
+}
+
+.cost-row--fixed {
+  grid-template-columns: repeat(4, minmax(92px, 1fr));
+}
+
+.cost-row__remove {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  margin-right: auto;
+  justify-self: end;
+  justify-content: center;
+  align-self: end;
+}
+
+.cost-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.cost-footer span {
+  color: #69766e;
+  font-size: 0.78rem;
 }
 
 .empty-state {
@@ -659,6 +737,26 @@ select {
   margin: 14px 0 18px;
 }
 
+.summary-resources {
+  display: grid;
+  gap: 7px;
+  border-top: 1px solid #d5ddd7;
+  padding-top: 14px;
+}
+
+.summary-resources > span {
+  color: #66736b;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.summary-resources > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.82rem;
+}
+
 .form-error,
 .save-message {
   margin: 12px 0;
@@ -738,37 +836,34 @@ body {
 .resource-fields label > span,
 .speedup-stock label > span,
 .training-fields label > span,
+.cost-row label > span,
 .app-brand > div span,
 .resource-identity p,
 .resource-result span,
 .resource-result small,
 .empty-state,
+.cost-footer span,
 .universal-breakdown span,
 .training-results span,
 .summary-total span,
 .summary-total small,
 .day-summary span,
-.summary-meta span {
+.summary-meta span,
+.summary-resources > span {
   color: #9bab9f;
 }
 
-.resource-picker input,
-.resource-picker select,
 .resource-fields select,
-.training-fields select {
+.training-fields select,
+.cost-row select {
   border-color: #2d4037;
   color: #ecf5ef;
   background: #101714;
 }
 
-.resource-picker input::placeholder {
-  color: #76877c;
-}
-
-.resource-picker input:focus,
-.resource-picker select:focus,
 .resource-fields select:focus,
-.training-fields select:focus {
+.training-fields select:focus,
+.cost-row select:focus {
   border-color: #32b681;
   box-shadow: 0 0 0 3px rgb(50 182 129 / 18%);
 }
@@ -779,8 +874,18 @@ body {
 .training-planner,
 .training-results,
 .universal-breakdown,
-.day-summary {
+.day-summary,
+.summary-resources,
+.cost-details {
   border-color: #26362f;
+}
+
+.cost-details summary {
+  color: #d9e7de;
+}
+
+.cost-details summary strong {
+  color: #f3fbf6;
 }
 
 .universal-breakdown > div,
@@ -789,7 +894,16 @@ body {
 }
 
 .resource-icon {
-  background: color-mix(in srgb, currentColor 16%, #111916);
+  border-color: color-mix(in srgb, currentColor 64%, #e5f3eb);
+  background:
+    radial-gradient(circle at 35% 28%, rgb(255 255 255 / 94%), rgb(236 246 240 / 82%) 58%, rgb(25 34 30 / 76%) 100%),
+    color-mix(in srgb, currentColor 28%, #111916);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 28%);
+}
+
+.resource-icon img {
+  filter: brightness(1.16) contrast(1.14) saturate(1.08) drop-shadow(0 1px 1px rgb(0 0 0 / 42%));
+  opacity: 1;
 }
 
 .resource-identity small,
@@ -890,6 +1004,19 @@ body {
 
   .resource-fields {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cost-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cost-row--fixed {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cost-row button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .speedup-heading {

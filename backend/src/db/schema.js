@@ -62,6 +62,7 @@ export const userPlanItems = sqliteTable(
     amount: real('amount').notNull(),
     plannedAmount: real('planned_amount').notNull(),
     universalAmount: real('universal_amount').notNull().default(0),
+    resourceCosts: text('resource_costs', { mode: 'json' }).notNull().default('[]'),
     day: integer('day').notNull(),
     updatedAt: text('updated_at').notNull()
   },
@@ -84,5 +85,6 @@ export const userTrainingPlans = sqliteTable('user_training_plans', {
   batchMinutes: integer('batch_minutes').notNull(),
   trainingSpeedupMinutes: integer('training_speedup_minutes').notNull(),
   universalTrainingMinutes: integer('universal_training_minutes').notNull().default(0),
+  resourceCosts: text('resource_costs', { mode: 'json' }).notNull().default('[]'),
   updatedAt: text('updated_at').notNull()
 });

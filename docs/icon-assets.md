@@ -33,7 +33,7 @@ SVG адаптированы для интерфейса:
 | Молот перековки | `reforge-hammer.svg` |
 | Изолента для перековки | `reforge-tape.svg` |
 | Болты T1 / T2 / T3 | `common-parts.svg`, цвет задается из БД |
-| Ускоритель исследования | `research-speedup.svg` |
+| Ускорение исследования | `research-speedup.svg` |
 | Ускорение строительства | `construction-speedup.svg` |
 | Солдаты ур. 1-10 | `soldiers.svg` |
 | Клетка титана | `titan-cell.svg` |

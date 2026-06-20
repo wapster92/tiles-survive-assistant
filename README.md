@@ -18,6 +18,8 @@ npm run dev:frontend
 
 По умолчанию backend слушает `http://localhost:3000`, frontend — `http://localhost:5173`.
 
+В dev-режиме frontend проксирует `/api`, `/api-docs`, `/openapi.json` и `/health` на backend. Если backend запущен не на `http://localhost:3000`, задайте `VITE_DEV_API_URL` в `frontend/.env`.
+
 Swagger UI backend доступен по адресу `http://localhost:3000/api-docs`, OpenAPI JSON — `http://localhost:3000/openapi.json`.
 
 ## Docker
@@ -36,5 +38,3 @@ docker compose up --build
 - `/health` → проверка backend.
 
 SQLite-база backend хранится в Docker volume `sqlite-data`. Локально путь можно переопределить через `SQLITE_DATABASE_PATH`.
-
-Для запуска frontend/backend в dev-режиме без Docker используйте `.env` в `frontend/` на основе `frontend/.env.example`, чтобы Vite ходил в `http://localhost:3000`.
