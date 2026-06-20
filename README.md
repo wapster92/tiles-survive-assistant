@@ -38,3 +38,11 @@ docker compose up --build
 - `/health` → проверка backend.
 
 SQLite-база backend хранится в Docker volume `sqlite-data`. Локально путь можно переопределить через `SQLITE_DATABASE_PATH`.
+
+### Production на VPS
+
+На сервере внешний nginx проксирует домен `assistant.1062685-cv77550.tmweb.ru` на проектный nginx по `127.0.0.1:8081`.
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```

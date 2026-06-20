@@ -1,0 +1,8 @@
+services:
+  backend:
+    environment:
+      CORS_ORIGIN: https://assistant.1062685-cv77550.tmweb.ru
+
+  web:
+    ports: !override
+      - "127.0.0.1:8081:80"
