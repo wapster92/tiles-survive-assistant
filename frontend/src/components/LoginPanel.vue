@@ -5,8 +5,8 @@ import { apiClient } from '../api/client.js';
 const emit = defineEmits(['authenticated']);
 
 const mode = ref('login');
-const username = ref('root');
-const password = ref('0000');
+const username = ref('');
+const password = ref('');
 const registerUsername = ref('');
 const registerPassword = ref('');
 const gameNickname = ref('');
