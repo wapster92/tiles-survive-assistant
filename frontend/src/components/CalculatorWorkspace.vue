@@ -400,7 +400,7 @@ function appendRule(rule) {
 
   const existing = planItems.value.find((item) => item.ruleKey === rule.key);
 
-  planItems.value.push({
+  planItems.value.unshift({
     ruleKey: rule.key,
     amount: existing?.amount ?? 0,
     plannedAmount: 0,
@@ -433,7 +433,7 @@ function sendUniversalRemainderTo(ruleKey) {
 
   let target = null;
 
-  for (let index = planItems.value.length - 1; index >= 0; index -= 1) {
+  for (let index = 0; index < planItems.value.length; index += 1) {
     if (planItems.value[index].ruleKey === ruleKey) {
       target = planItems.value[index];
       break;
@@ -448,7 +448,7 @@ function sendUniversalRemainderTo(ruleKey) {
       return;
     }
 
-    target = planItems.value.at(-1);
+    target = planItems.value[0];
   }
 
   target.universalAmount = number(target.universalAmount) + remainder;
